@@ -28,3 +28,8 @@ reports/*.html
 .vscode/
 .idea/
 *.swp
+
+# MovieMind local analysis artifacts
+*.movie.db
+.moviemind/
+*.report.md

@@ -624,6 +624,135 @@ def clear_usage_stats() -> dict:
     return {"cleared": True, "records_deleted": deleted}
 
 
+
+# ─── MovieMind long-video tools ─────────────────────────────────────────────
+
+@app.tool()
+async def movie_process(
+    ctx: Context,
+    path: str,
+    db_path: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    profile: str = "auto",
+    max_cost_usd: float = 0.0,
+    timeout: int = 600,
+) -> dict:
+    """Fully index a feature-length movie into persistent MovieMind memory.
+
+    The pipeline is shot-based and resumable. It does not use Vidlizer's old
+    whole-movie frame cap. One shot is analyzed at a time and temporary frames
+    are deleted after analysis.
+    """
+    from vidlizer.longvideo.cli import _db_for
+    from vidlizer.longvideo.pipeline import process_movie
+
+    video = Path(_resolve_local_path(path))
+    db = Path(db_path) if db_path else _db_for(video)
+    await ctx.report_progress(0, 100)
+    result = await asyncio.to_thread(
+        process_movie,
+        video,
+        db,
+        provider=provider,
+        model=model,
+        profile=profile,
+        max_cost=max_cost_usd,
+        timeout=timeout,
+    )
+    await ctx.report_progress(100, 100)
+    return {
+        "db": result["db"],
+        "movie_id": result["movie_id"],
+        "duration_s": result["duration_s"],
+        "shots": result["shots"],
+        "samples": result["samples"],
+        "provider": result["provider"],
+        "ready": True,
+    }
+
+
+@app.tool()
+def movie_status(db_path: str) -> dict:
+    """Return progress and readiness of a MovieMind database."""
+    from vidlizer.longvideo.pipeline import status
+    return status(Path(db_path))
+
+
+@app.tool()
+def movie_search(db_path: str, query: str, limit: int = 12) -> list[dict]:
+    """Search indexed movie evidence without invoking an LLM."""
+    from vidlizer.longvideo.db import connect, like_search_evidence, search_evidence
+    import re
+
+    conn = connect(Path(db_path))
+    try:
+        movie = conn.execute(
+            "SELECT id FROM movies ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if not movie:
+            return []
+        terms = re.findall(r"[\\w\\u4e00-\\u9fff]{2,}", query.lower())
+        if not terms:
+            return []
+        fts = " AND ".join(f'"{term.replace(chr(34), "")}"' for term in terms[:12])
+        rows = search_evidence(conn, int(movie[0]), fts, limit=limit)
+        if not rows:
+            rows = like_search_evidence(conn, int(movie[0]), terms, limit=limit)
+        return rows
+    finally:
+        conn.close()
+
+
+@app.tool()
+def movie_ask(
+    db_path: str,
+    question: str,
+    provider: str | None = None,
+    model: str | None = None,
+    deep: bool = False,
+    video: str | None = None,
+    max_cost_usd: float = 0.0,
+    timeout: int = 600,
+) -> dict:
+    """Answer a question from persistent MovieMind memory and evidence.
+
+    With deep=True the system may re-read relevant windows from the original
+    movie before answering.
+    """
+    from vidlizer.longvideo.db import connect
+    from vidlizer.longvideo.provider import ProviderClient
+    from vidlizer.longvideo.qa import ask
+
+    db = Path(db_path)
+    conn = connect(db)
+    try:
+        row = conn.execute(
+            "SELECT id, source_path FROM movies ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return {"error": "No movie found in database."}
+        client = ProviderClient.from_env(
+            provider=provider,
+            model=model,
+            timeout=timeout,
+            max_cost=max_cost_usd,
+        )
+        client.preflight()
+        source = Path(video) if video else Path(row["source_path"])
+        with tempfile.TemporaryDirectory(prefix="moviemind_mcp_") as temp:
+            return ask(
+                conn,
+                int(row["id"]),
+                question,
+                client,
+                video=source if deep else None,
+                deep=deep,
+                workspace=Path(temp),
+            )
+    finally:
+        conn.close()
+
 # ─── resources ──────────────────────────────────────────────────────────────
 
 @app.resource("vidlizer://analyses")
