@@ -74,6 +74,13 @@ def analyze_shot(
             f"[{float(s['start']):.2f}-{float(s['end']):.2f}] {s['text']}"
             for s in segments
         )
+        if len(transcript_text) > 1800:
+            transcript_text = (
+                transcript_text[:900]
+                + "\n...[middle omitted]...\n"
+                + transcript_text[-900:]
+            )
+
         depth_note = (
             "This is a SECOND, HIGH-DENSITY PASS. Re-check subtle visual changes, identity continuity, "
             "objects, and action ordering. Resolve uncertainty where the added observations support it.\n"
@@ -107,22 +114,17 @@ def analyze_shot(
                 )
             ):
                 raise
+
             compact_prompt = (
-                f"{SHOT_PROMPT}
-"
+                f"{SHOT_PROMPT}\n"
                 "COMPACT RETRY: Return a small JSON object only. "
                 "Use at most 3 items in any array. Keep each string under 120 characters. "
                 "Keep summary under 240 characters and dialogue_context under 180 characters. "
-                "No markdown, no commentary, no long quotations.
-"
+                "No markdown, no commentary, no long quotations.\n"
                 f"{depth_note}"
-                f"Shot: {shot.shot_id}
-"
-                f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s
-"
-                f"Transcript:
-{transcript_text or '(none)'}
-"
+                f"Shot: {shot.shot_id}\n"
+                f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s\n"
+                f"Transcript:\n{transcript_text or '(none)'}\n"
             )
             # Reuse the extracted frames; do not launch another FFmpeg process.
             result = client.analyze(
@@ -131,6 +133,7 @@ def analyze_shot(
                 timestamps,
                 max_output_tokens=min(max_output_tokens, 1024),
             )
+
         result.update(
             {
                 "shot_id": shot.shot_id,
