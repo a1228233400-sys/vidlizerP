@@ -164,7 +164,7 @@ class ProviderClient:
                 return value
         except json.JSONDecodeError as first_exc:
             # A trailing comma is safe to normalize.
-            normalized = re.sub(r",(s*[}]])", r"\1", text)
+            normalized = re.sub(r",(\s*[}\]])", r"\1", text)
             try:
                 value, _ = decoder.raw_decode(normalized)
                 if isinstance(value, dict):
@@ -212,7 +212,7 @@ class ProviderClient:
                         elif part.get("type") == "image_url":
                             url = part["image_url"]["url"]
                             images.append(url.split(",", 1)[1] if "," in url else url)
-                    native = {"role": msg["role"], "content": "\\n".join(text_parts)}
+                    native = {"role": msg["role"], "content": "\n".join(text_parts)}
                     if images:
                         native["images"] = images
                     native_messages.append(native)
@@ -321,8 +321,7 @@ class ProviderClient:
 
             # The canonical model name is qwen2.5vl:7b, while many local
             # Ollama installs use a quantized tag such as qwen2.5vl:7b-q4_K_M.
-            # Resolve the canonical default to an installed concrete tag so the
-            # subsequent /api/chat request does not fail with HTTP 404.
+            # Resolve the canonical default to an installed concrete tag.
             if self.config.model == "qwen2.5vl:7b":
                 family = [
                     name for name in names
