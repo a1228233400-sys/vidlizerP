@@ -108,6 +108,35 @@ def ask(
         + "\n\nTARGETED REWATCH:\n" + (rewatch_text or "(none)")
     )
     result = client.complete_json(prompt, max_output_tokens=3072)
+
+    if (
+        result.get("needs_rewatch")
+        and not rewatch_results
+        and video
+        and workspace
+        and hits
+    ):
+        transcript, _ = transcribe_movie(video)
+        target = hits[0]
+        rewatch_results.append(
+            rewatch_window(
+                client,
+                video,
+                transcript,
+                max(0.0, target.start_s - 20),
+                target.end_s + 20,
+                workspace,
+                scale=768,
+                max_frames=24,
+            )
+        )
+        refined_prompt = prompt + (
+            "\n\nThe first answer requested a rewatch. A targeted rewatch is now available:\n"
+            + json.dumps(rewatch_results, ensure_ascii=False)
+            + "\nRe-evaluate the answer using this new evidence."
+        )
+        result = client.complete_json(refined_prompt, max_output_tokens=3072)
+
     if rewatch_results:
         result["rewatch"] = rewatch_results
     return result
