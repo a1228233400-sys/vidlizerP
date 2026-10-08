@@ -178,7 +178,7 @@ def ask(
             "source_type": h.source_type,
             "start_s": h.start_s,
             "end_s": h.end_s,
-            "timestamp": _timestamp(h.start_s),
+            "timestamp": (None if h.source_type in {"global", "character"} else _timestamp(h.start_s)),
             "content": h.content,
         }
         for h in hits
