@@ -182,14 +182,14 @@ def analyze_all_shots(
                     )
                     if deep_needed:
                         try:
-                            deep_samples = min(24, max(max_samples_per_shot + 4, max_samples_per_shot * 2))
+                            deep_samples = min(12, max_samples_per_shot + 2)
                             observation = analyze_shot(
                                 client,
                                 video,
                                 shot,
                                 transcript,
                                 workspace,
-                                scale=min(896, scale + 128),
+                                scale=min(768, scale + 64),
                                 max_samples=deep_samples,
                                 max_output_tokens=max_output_tokens,
                                 deep_pass=True,
