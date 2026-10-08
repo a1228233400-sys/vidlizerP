@@ -144,7 +144,15 @@ def embedded_subtitle_transcript(video: Path) -> list[dict]:
     return parse_srt(proc.stdout)
 
 def transcribe_movie(video: Path) -> tuple[list[dict], str]:
-    """Choose the safest available local transcript path for the platform."""
+    """Prefer existing subtitles before downloading/running a local Whisper model."""
+    sidecar = sidecar_transcript(video)
+    if sidecar:
+        return sidecar, "sidecar"
+
+    embedded = embedded_subtitle_transcript(video)
+    if embedded:
+        return embedded, "embedded-subtitle"
+
     if sys.platform == "darwin":
         try:
             result = _mlx_transcribe(video)
@@ -159,14 +167,6 @@ def transcribe_movie(video: Path) -> tuple[list[dict], str]:
             return result, "faster-whisper"
     except Exception:
         pass
-
-    sidecar = sidecar_transcript(video)
-    if sidecar:
-        return sidecar, "sidecar"
-
-    embedded = embedded_subtitle_transcript(video)
-    if embedded:
-        return embedded, "embedded-subtitle"
 
     return [], "unavailable"
 
