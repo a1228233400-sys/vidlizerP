@@ -15,12 +15,13 @@ class Profile:
     max_samples_per_shot: int
     frame_scale: int
     max_output_tokens: int
+    context_tokens: int
 
 
 PROFILES = {
-    "safe": Profile("safe", 8, 512, 1536),
-    "balanced": Profile("balanced", 12, 640, 2048),
-    "deep": Profile("deep", 16, 768, 3072),
+    "safe": Profile("safe", 8, 512, 1536, 8192),
+    "balanced": Profile("balanced", 12, 640, 2048, 12288),
+    "deep": Profile("deep", 16, 768, 3072, 16384),
 }
 
 
