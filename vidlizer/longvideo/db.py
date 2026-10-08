@@ -537,3 +537,27 @@ def clear_memory_layers(conn: sqlite3.Connection, movie_id: int) -> None:
     conn.execute("DELETE FROM characters WHERE movie_id=?", (movie_id,))
     conn.execute("DELETE FROM memories WHERE movie_id=?", (movie_id,))
     conn.commit()
+
+
+def like_search_evidence(
+    conn: sqlite3.Connection,
+    movie_id: int,
+    terms: list[str],
+    limit: int = 12,
+) -> list[dict]:
+    clean = [term.strip() for term in terms if term.strip()]
+    if not clean:
+        return []
+    clauses = " OR ".join("content LIKE ?" for _ in clean)
+    params = [f"%{term}%" for term in clean]
+    rows = conn.execute(
+        f"""
+        SELECT evidence_id, source_type, start_s, end_s, content
+        FROM evidence
+        WHERE movie_id=? AND ({clauses})
+        ORDER BY start_s
+        LIMIT ?
+        """,
+        (movie_id, *params, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
