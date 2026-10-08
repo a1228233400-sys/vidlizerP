@@ -10,6 +10,7 @@ from .db import (
     upsert_character,
     upsert_event,
     upsert_event_relation,
+    replace_story_sequences,
     upsert_memory,
 )
 from .provider import ProviderClient
@@ -170,7 +171,20 @@ def build_hierarchical_memory(
             "Return ONLY JSON with sequence_title, summary, key_events, character_changes.\\n\\n"
             + "\\n\\n".join(_scene_text(s) for s in chunk)
         )
-        sequences.append(client.complete_json(prompt, max_output_tokens=2048))
+        summary = client.complete_json(prompt, max_output_tokens=2048)
+        sequence = {
+            "sequence_id": f"seq_{start // scene_batch + 1:04d}",
+            "start_s": float(chunk[0]["start_s"]),
+            "end_s": float(chunk[-1]["end_s"]),
+            "title": summary.get("sequence_title", f"Sequence {start // scene_batch + 1}"),
+            "summary": summary.get("summary", ""),
+            "key_events": summary.get("key_events", []),
+            "character_changes": summary.get("character_changes", []),
+        }
+        sequences.append(sequence)
+
+    replace_story_sequences(conn, movie_id, sequences)
+    conn.commit()
 
     high_events = [e for e in events if e.get("importance") == "high"][:40]
     global_prompt = (
