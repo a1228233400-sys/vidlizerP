@@ -1,4 +1,4 @@
-"""Shot detection for long-form video."""
+"""Shot detection for long-form video using PySceneDetect."""
 
 from __future__ import annotations
 
@@ -7,31 +7,26 @@ from pathlib import Path
 from .models import Shot
 
 
-def detect_shots(video: Path, threshold: float = 3.0, min_scene_len: int = 12) -> list[Shot]:
-    """Detect visual shots with PySceneDetect.
-
-    The import stays optional so the original Vidlizer installation remains
-    lightweight. Shot detection is the first long-video-specific stage.
-    """
+def detect_shots(
+    video: Path,
+    threshold: float = 3.0,
+    min_scene_len: int = 12,
+) -> list[Shot]:
     try:
-        from scenedetect import AdaptiveDetector, SceneManager, open_video
+        from scenedetect import AdaptiveDetector, detect
     except ImportError as exc:
         raise RuntimeError(
-            "PySceneDetect is required for long-video ingestion. "
-            "Install with: pip install 'vidlizer[longvideo]'"
+            "PySceneDetect is required. Install with: pip install 'vidlizer[longvideo]'"
         ) from exc
 
     try:
-        video_manager = open_video(str(video))
-        manager = SceneManager()
-        manager.add_detector(
+        raw_scenes = detect(
+            str(video),
             AdaptiveDetector(
                 adaptive_threshold=threshold,
                 min_scene_len=min_scene_len,
-            )
+            ),
         )
-        manager.detect_scenes(video=video_manager)
-        raw_scenes = manager.get_scene_list()
     except Exception as exc:
         raise RuntimeError(f"shot detection failed: {exc}") from exc
 
@@ -50,10 +45,8 @@ def detect_shots(video: Path, threshold: float = 3.0, min_scene_len: int = 12) -
             )
         )
 
-    # Some videos yield no cuts. Preserve the whole movie as one shot.
     if not shots:
         from .media import probe_movie
-
         info = probe_movie(video)
         shots = [
             Shot(
@@ -63,5 +56,4 @@ def detect_shots(video: Path, threshold: float = 3.0, min_scene_len: int = 12) -
                 duration_s=round(info.duration_s, 3),
             )
         ]
-
     return shots
