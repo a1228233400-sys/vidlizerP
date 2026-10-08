@@ -14,7 +14,7 @@ def detect_shots(video: Path, threshold: float = 3.0, min_scene_len: int = 12) -
     lightweight. Shot detection is the first long-video-specific stage.
     """
     try:
-        from scenedetect import AdaptiveDetector, open_video, scene_manager
+        from scenedetect import AdaptiveDetector, SceneManager, open_video
     except ImportError as exc:
         raise RuntimeError(
             "PySceneDetect is required for long-video ingestion. "
@@ -23,7 +23,7 @@ def detect_shots(video: Path, threshold: float = 3.0, min_scene_len: int = 12) -
 
     try:
         video_manager = open_video(str(video))
-        manager = scene_manager.SceneManager()
+        manager = SceneManager()
         manager.add_detector(
             AdaptiveDetector(
                 adaptive_threshold=threshold,
