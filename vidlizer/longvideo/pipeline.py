@@ -168,6 +168,41 @@ def analyze_all_shots(
                         max_samples=max_samples_per_shot,
                         max_output_tokens=max_output_tokens,
                     )
+
+                    importance = str(observation.get("importance", "medium")).lower()
+                    try:
+                        confidence = float(observation.get("confidence", 1.0))
+                    except (TypeError, ValueError):
+                        confidence = 1.0
+
+                    # Spend extra vision only where the first pass signals that it can matter.
+                    deep_needed = (
+                        importance == "high"
+                        or confidence < 0.55
+                    )
+                    if deep_needed:
+                        try:
+                            deep_samples = min(24, max(max_samples_per_shot + 4, max_samples_per_shot * 2))
+                            observation = analyze_shot(
+                                client,
+                                video,
+                                shot,
+                                transcript,
+                                workspace,
+                                scale=min(896, scale + 128),
+                                max_samples=deep_samples,
+                                max_output_tokens=max_output_tokens,
+                                deep_pass=True,
+                            )
+                            observation["scout_pass"] = {
+                                "importance": importance,
+                                "confidence": confidence,
+                            }
+                        except Exception as deep_exc:
+                            # Never throw away a successful scout pass just because the optional
+                            # refinement failed (rate limit, transient model error, cost cap, etc.).
+                            observation["deep_pass_error"] = str(deep_exc)
+
                     store_shot_observation(conn, movie_id, observation)
                     mark_shot_status(conn, movie_id, shot.shot_id, "complete")
                     conn.commit()
