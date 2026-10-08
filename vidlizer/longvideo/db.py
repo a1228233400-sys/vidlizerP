@@ -493,8 +493,15 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
         (movie_id,),
     ):
         evidence_rows.append(
-            (f"ev_char_{row['character_key']}", movie_id, "character", row["character_key"],
-             0.0, 0.0, f"{row['name']}. {row['description']} Arc: {row['arc_notes']}")
+            (
+                f"ev_char_{row['character_key']}",
+                movie_id,
+                "character",
+                row["character_key"],
+                0.0,
+                0.0,
+                f"{row['name']}. {row['description']} Arc: {row['arc_notes']}",
+            )
         )
 
     conn.executemany(
