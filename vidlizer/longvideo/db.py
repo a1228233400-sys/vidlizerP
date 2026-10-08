@@ -558,9 +558,15 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
         "INSERT INTO evidence (evidence_id, movie_id, source_type, source_id, start_s, end_s, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
         evidence_rows,
     )
+    # evidence has 7 columns; FTS search_index stores the same record except
+    # source_id, so explicitly project the 6 matching columns.
+    search_rows = [
+        (row[0], row[1], row[2], row[4], row[5], row[6])
+        for row in evidence_rows
+    ]
     conn.executemany(
         "INSERT INTO search_index (evidence_id, movie_id, source_type, start_s, end_s, content) VALUES (?, ?, ?, ?, ?, ?)",
-        evidence_rows,
+        search_rows,
     )
     conn.commit()
     return len(evidence_rows)
