@@ -23,7 +23,6 @@ from .db import (
     store_shot_observation,
     rebuild_search_index,
     replace_shots,
-    upsert_memory,
     upsert_movie,
 )
 from .media import probe_movie
