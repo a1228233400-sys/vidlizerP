@@ -32,3 +32,4 @@ reports/*.html
 # MovieMind local analysis artifacts
 *.movie.db
 .moviemind/
+*.report.md
