@@ -88,10 +88,12 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("db", type=Path)
     report.add_argument("--output", type=Path, default=None)
 
-    doctor = sub.add_parser("doctor", help="Check local resources without processing.")
+    doctor = sub.add_parser("doctor", help="Check local resources and local dependencies without processing.")
     doctor.add_argument("video", type=Path)
     doctor.add_argument("--db", type=Path, default=None)
     doctor.add_argument("--profile", choices=["auto", "safe", "balanced", "deep"], default="auto")
+    doctor.add_argument("--provider", choices=["ollama", "openrouter", "openai"], default=None)
+    doctor.add_argument("--model", default=None)
 
     return parser
 
@@ -113,7 +115,30 @@ def main(argv: list[str] | None = None) -> int:
         snap, warnings = check_safe_to_start(args.video, db)
         profile = recommend_profile(snap) if args.profile == "auto" else PROFILES[args.profile]
         _console.print(format_preflight(snap, warnings, profile))
-        return 0
+
+        import importlib.util
+        import shutil
+
+        checks = {
+            "ffmpeg": bool(shutil.which("ffmpeg")),
+            "pyscenedetect": importlib.util.find_spec("scenedetect") is not None,
+            "faster_whisper": importlib.util.find_spec("faster_whisper") is not None,
+            "mlx_whisper": importlib.util.find_spec("mlx_whisper") is not None,
+        }
+        _console.print("\nDependencies:")
+        for name, ok in checks.items():
+            _console.print(f"  {'✓' if ok else '✗'} {name}")
+
+        if args.provider:
+            try:
+                client = ProviderClient.from_env(args.provider, args.model)
+                client.preflight()
+                _console.print(f"  ✓ provider: {args.provider} / {client.config.model}")
+            except Exception as exc:
+                _console.print(f"  ✗ provider: {exc}")
+                return 2
+
+        return 0 if checks["ffmpeg"] and checks["pyscenedetect"] else 2
 
     if args.command == "ingest":
         db = args.db or _db_for(args.video)
