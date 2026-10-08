@@ -36,7 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 transcribe = ["mlx-whisper>=0.4"]
-longvideo = ["scenedetect[opencv]~=0.7", "psutil>=6.0"]
+longvideo = ["scenedetect[opencv]~=0.7", "psutil>=6.0", "faster-whisper~=1.2.1"]
 mcp = ["mcp>=1.0"]
 dev = [
     "pytest>=8.0",
