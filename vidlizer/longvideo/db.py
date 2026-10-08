@@ -489,7 +489,7 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
         )
 
     for row in conn.execute(
-        "SELECT character_key, name, description, arc_notes FROM characters WHERE movie_id=?",
+        "SELECT character_key, name, aliases_json, description, arc_notes FROM characters WHERE movie_id=?",
         (movie_id,),
     ):
         evidence_rows.append(
@@ -500,7 +500,7 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
                 row["character_key"],
                 0.0,
                 0.0,
-                f"{row['name']}. {row['description']} Arc: {row['arc_notes']}",
+                f"{row['name']}. Aliases: {row['aliases_json']}. {row['description']} Arc: {row['arc_notes']}",
             )
         )
 
