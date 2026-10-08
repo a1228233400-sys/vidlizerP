@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .db import get_global_memory, rebuild_search_index, search_evidence
+from .db import get_global_memory, like_search_evidence, rebuild_search_index, search_evidence
 from .provider import ProviderClient
 from .rewatch import rewatch_window
 from .transcript import transcribe_movie
@@ -29,8 +29,12 @@ def _timestamp(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def _terms(question: str) -> list[str]:
+    return re.findall(r"[\w\u4e00-\u9fff]{2,}", question.lower())
+
+
 def _fts_query(question: str) -> str:
-    tokens = re.findall(r"[\w\u4e00-\u9fff]{2,}", question.lower())
+    tokens = _terms(question)
     if not tokens:
         return "movie"
     return " AND ".join(f'"{token.replace(chr(34), "")}"' for token in tokens[:12])
@@ -52,6 +56,8 @@ def ask(
     max_hits: int = 12,
 ) -> dict:
     hits_raw = search_evidence(conn, movie_id, _fts_query(question), limit=max_hits)
+    if not hits_raw:
+        hits_raw = like_search_evidence(conn, movie_id, _terms(question), limit=max_hits)
     hits = [
         EvidenceHit(
             evidence_id=row["evidence_id"],
