@@ -11,6 +11,7 @@ from .analysis import analyze_shot
 from .db import (
     connect,
     get_global_memory,
+    clear_memory_layers,
     insert_samples,
     insert_transcript,
     load_movie_info,
@@ -218,11 +219,15 @@ def build_memory(
         if not movie_id:
             raise RuntimeError("No movie is indexed in this database.")
         mid = int(movie_id[0])
+        if stage_complete(conn, mid, "global_memory"):
+            return get_global_memory(conn, mid) or {}
+
         if not stage_complete(conn, mid, "scene_memory"):
             scenes = build_scenes(conn, mid, client)
             record_run(conn, mid, "scene_memory", "complete", {"scene_count": len(scenes)})
             conn.commit()
 
+        clear_memory_layers(conn, mid)
         registry, events = build_character_event_memory(conn, mid, client)
         record_run(
             conn,
