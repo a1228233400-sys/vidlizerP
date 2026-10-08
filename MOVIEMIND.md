@@ -27,7 +27,11 @@ movieai doctor movie.mp4
 ~~~
 
 The doctor checks disk and available RAM. MovieMind defaults to one worker, does not auto-start
-Ollama, and does not auto-download a local model.
+Ollama, and does not auto-download an Ollama model.
+
+On macOS, MovieMind can use the Vidlizer MLX Whisper path. On Windows/Linux, the long-video
+extra includes faster-whisper; its default is CPU INT8 with four threads and one worker. You can
+override MOVIEMIND_WHISPER_MODEL, MOVIEMIND_WHISPER_DEVICE, or MOVIEMIND_WHISPER_COMPUTE_TYPE.
 
 ## Run the complete pipeline
 
@@ -57,6 +61,9 @@ The model must already be installed in Ollama.
 
 ~~~bash
 movieai status movie.mp4.movie.db
+
+Status reports total shots, completed shots, visual coverage percentage, scenes,
+characters, events, transcript segments, and evidence records.
 movieai ask movie.mp4.movie.db "Why did the protagonist betray her?"
 movieai ask movie.mp4.movie.db "When did the red box first appear?"
 movieai ask movie.mp4.movie.db "What happened around 00:47:00?"
