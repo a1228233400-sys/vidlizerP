@@ -37,21 +37,27 @@ Return ONLY JSON:
 """
 
 
-def _items(rows: list[dict]) -> str:
-    return "\\n\\n".join(
-        f"[{r['shot_id']}] {r['start_s']:.2f}-{r['end_s']:.2f}s\\n{r.get('observation_text', r.get('summary', ''))}"
-        for r in rows
-    )
+def _items(rows: list[dict], excerpt_chars: int = 1200) -> str:
+    chunks = []
+    for row in rows:
+        text = str(row.get("observation_text", row.get("summary", "")))
+        if len(text) > excerpt_chars:
+            text = text[:excerpt_chars] + " …"
+        chunks.append(
+            f"[{row['shot_id']}] {row['start_s']:.2f}-{row['end_s']:.2f}s\n{text}"
+        )
+    return "\n\n".join(chunks)
+
 
 
 def build_scenes(
     conn,
     movie_id: int,
     client: ProviderClient,
-    window_size: int = 36,
-    overlap: int = 4,
+    window_size: int = 20,
+    overlap: int = 3,
     max_output_tokens: int = 2048,
-    max_scene_shots: int = 80,
+    max_scene_shots: int = 50,
 ) -> list[Scene]:
     rows = load_shot_observations(conn, movie_id)
     if not rows:
