@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -106,6 +107,41 @@ class ProviderClient:
             )
 
     @staticmethod
+    def _repair_truncated_json(text: str) -> str:
+        """Conservatively close JSON that was truncated at end-of-output."""
+        stack: list[str] = []
+        in_string = False
+        escaped = False
+        out: list[str] = []
+
+        for char in text:
+            out.append(char)
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == chr(92):
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+            elif char in "[{":
+                stack.append(char)
+            elif char == "]" and stack and stack[-1] == "[":
+                stack.pop()
+            elif char == "}" and stack and stack[-1] == "{":
+                stack.pop()
+
+        if in_string:
+            out.append('"')
+        while stack:
+            opener = stack.pop()
+            out.append("]" if opener == "[" else "}")
+        return "".join(out)
+
+    @staticmethod
     def _parse_json(text: str) -> dict[str, Any]:
         text = text.strip()
         fence = chr(96) * 3
@@ -115,7 +151,43 @@ class ProviderClient:
                 text = text.lstrip()[4:]
             if fence in text:
                 text = text.rsplit(fence, 1)[0]
-        value = json.loads(text.strip())
+
+        # Some local VLMs add a short preamble despite JSON mode.
+        first_object = text.find("{")
+        if first_object >= 0:
+            text = text[first_object:]
+
+        decoder = json.JSONDecoder()
+        try:
+            value, _ = decoder.raw_decode(text)
+            if isinstance(value, dict):
+                return value
+        except json.JSONDecodeError as first_exc:
+            # A trailing comma is safe to normalize.
+            normalized = re.sub(r",(s*[}]])", r"\1", text)
+            try:
+                value, _ = decoder.raw_decode(normalized)
+                if isinstance(value, dict):
+                    return value
+            except json.JSONDecodeError:
+                # Only attempt structural repair when the decoder is effectively
+                # reaching the end of a truncated response.
+                if (
+                    "Unterminated string" in str(first_exc)
+                    or first_exc.pos >= max(0, len(text) - 32)
+                ):
+                    repaired = ProviderClient._repair_truncated_json(normalized)
+                    try:
+                        value, _ = decoder.raw_decode(repaired)
+                        if isinstance(value, dict):
+                            return value
+                    except json.JSONDecodeError:
+                        pass
+
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ProviderError(f"Invalid JSON from model: {exc}") from exc
         if not isinstance(value, dict):
             raise ProviderError("Expected a JSON object.")
         return value
@@ -244,13 +316,36 @@ class ProviderClient:
                 raise ProviderError(
                     f"Ollama is not reachable at {host}. Start it first."
                 ) from exc
-            if not any(
-                name.split(":")[0] == self.config.model.split(":")[0]
-                for name in names
-            ):
-                raise ProviderError(
-                    f"Ollama model '{self.config.model}' is not installed."
-                )
+            if self.config.model in names:
+                return
+
+            # The canonical model name is qwen2.5vl:7b, while many local
+            # Ollama installs use a quantized tag such as qwen2.5vl:7b-q4_K_M.
+            # Resolve the canonical default to an installed concrete tag so the
+            # subsequent /api/chat request does not fail with HTTP 404.
+            if self.config.model == "qwen2.5vl:7b":
+                family = [
+                    name for name in names
+                    if name.split(":")[0] == "qwen2.5vl"
+                ]
+                if family:
+                    preferred = next(
+                        (name for name in family if "q4" in name.lower()),
+                        family[0],
+                    )
+                    self.config = ProviderConfig(
+                        self.config.provider,
+                        preferred,
+                        self.config.endpoint,
+                        self.config.api_key,
+                    )
+                    return
+
+            available = ", ".join(names[:12]) or "(none)"
+            raise ProviderError(
+                f"Ollama model '{self.config.model}' is not installed. "
+                f"Available models: {available}"
+            )
         elif not self.config.api_key:
             raise ProviderError("Provider API key is missing.")
 
