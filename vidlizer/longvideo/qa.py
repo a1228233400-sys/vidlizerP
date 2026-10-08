@@ -7,10 +7,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .db import get_global_memory, like_search_evidence, rebuild_search_index, search_evidence, time_evidence
+from .db import get_global_memory, like_search_evidence, load_transcript, rebuild_search_index, search_evidence, time_evidence
 from .provider import ProviderClient
 from .rewatch import rewatch_window
-from .transcript import transcribe_movie
 
 
 @dataclass(frozen=True)
@@ -139,7 +138,7 @@ def ask(
 
     rewatch_results: list[dict] = []
     if deep and video and workspace and hits:
-        transcript, _ = transcribe_movie(video)
+        transcript = load_transcript(conn, movie_id)
         windows: list[tuple[float, float]] = []
         for hit in [h for h in hits if h.source_type not in {"global", "character"}][:3]:
             start = max(0.0, hit.start_s - 12)
