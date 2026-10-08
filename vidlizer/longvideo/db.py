@@ -464,6 +464,13 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
             (f"ev_event_{row['event_id']}", movie_id, "event", row["event_id"],
              row["timestamp_s"], row["timestamp_s"], f"{row['type']}: {row['description']}")
         )
+    memory = get_global_memory(conn, movie_id)
+    if memory:
+        memory_text = json.dumps(memory, ensure_ascii=False)
+        evidence_rows.append(
+            ("ev_global_movie", movie_id, "global", "global", 0.0, 0.0, memory_text)
+        )
+
     for row in conn.execute(
         "SELECT character_key, name, description, arc_notes FROM characters WHERE movie_id=?",
         (movie_id,),
