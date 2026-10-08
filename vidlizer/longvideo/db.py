@@ -527,3 +527,13 @@ def stage_complete(conn, movie_id: int, stage: str) -> bool:
         (movie_id, stage),
     ).fetchone()
     return bool(row and row["status"] == "complete")
+
+
+def clear_memory_layers(conn: sqlite3.Connection, movie_id: int) -> None:
+    """Clear derived memory so a failed memory build can be restarted cleanly."""
+    conn.execute("DELETE FROM event_relations WHERE movie_id=?", (movie_id,))
+    conn.execute("DELETE FROM events WHERE movie_id=?", (movie_id,))
+    conn.execute("DELETE FROM character_mentions WHERE movie_id=?", (movie_id,))
+    conn.execute("DELETE FROM characters WHERE movie_id=?", (movie_id,))
+    conn.execute("DELETE FROM memories WHERE movie_id=?", (movie_id,))
+    conn.commit()
