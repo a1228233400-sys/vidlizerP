@@ -290,7 +290,26 @@ def load_shot_observations(conn: sqlite3.Connection, movie_id: int) -> list[dict
     out = []
     for row in rows:
         item = json.loads(row["data_json"])
-        item["observation_text"] = row["summary"]
+        item["observation_text"] = "\n".join(
+            [
+                f"Summary: {row['summary']}",
+                f"Location: {item.get('location', '')}",
+                f"Dialogue: {item.get('dialogue_context', '')}",
+                "Actions: " + "; ".join(
+                    x.get("description", "") if isinstance(x, dict) else str(x)
+                    for x in item.get("actions", [])
+                ),
+                "Objects: " + ", ".join(map(str, item.get("objects", []))),
+                "Text: " + ", ".join(map(str, item.get("text_visible", []))),
+                "Visual changes: " + "; ".join(
+                    map(str, item.get("visual_changes", []))
+                ),
+                "Characters: " + ", ".join(
+                    x.get("label", "?") if isinstance(x, dict) else str(x)
+                    for x in item.get("characters", [])
+                ),
+            ]
+        )
         item["start_s"] = row["start_s"]
         item["end_s"] = row["end_s"]
         out.append(item)
