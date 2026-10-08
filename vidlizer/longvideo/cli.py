@@ -122,7 +122,11 @@ def main(argv: list[str] | None = None) -> int:
         db = args.db or _db_for(args.video)
         profile = PROFILES[args.profile]
         client = ProviderClient.from_env(
-            args.provider, args.model, timeout=args.timeout, max_cost=args.max_cost
+            args.provider,
+            args.model,
+            timeout=args.timeout,
+            max_cost=args.max_cost,
+            context_tokens=profile.context_tokens,
         )
         client.preflight()
         result = analyze_all_shots(
