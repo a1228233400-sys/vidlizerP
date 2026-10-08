@@ -432,12 +432,29 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
 
     evidence_rows = []
     for row in conn.execute(
-        "SELECT shot_id, start_s, end_s, summary FROM shot_observations WHERE movie_id=?",
+        "SELECT shot_id, start_s, end_s, summary, data_json FROM shot_observations WHERE movie_id=?",
         (movie_id,),
     ):
+        try:
+            detail = json.loads(row["data_json"])
+        except (TypeError, json.JSONDecodeError):
+            detail = {}
+        content_text = " ".join(
+            [
+                row["summary"],
+                str(detail.get("location", "")),
+                str(detail.get("dialogue_context", "")),
+                " ".join(map(str, detail.get("objects", []))),
+                " ".join(map(str, detail.get("text_visible", []))),
+                " ".join(
+                    x.get("description", "") if isinstance(x, dict) else str(x)
+                    for x in detail.get("actions", [])
+                ),
+            ]
+        ).strip()
         evidence_rows.append(
             (f"ev_shot_{row['shot_id']}", movie_id, "shot", row["shot_id"],
-             row["start_s"], row["end_s"], row["summary"])
+             row["start_s"], row["end_s"], content_text)
         )
     for row in conn.execute(
         "SELECT id, start_s, end_s, text FROM transcripts WHERE movie_id=?",
