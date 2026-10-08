@@ -284,6 +284,7 @@ def process_movie(
         model=model,
         timeout=timeout,
         max_cost=max_cost,
+        context_tokens=selected.context_tokens,
     )
     client.preflight()
 
