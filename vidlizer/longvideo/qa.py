@@ -141,7 +141,7 @@ def ask(
     if deep and video and workspace and hits:
         transcript, _ = transcribe_movie(video)
         windows: list[tuple[float, float]] = []
-        for hit in hits[:3]:
+        for hit in [h for h in hits if h.source_type not in {"global", "character"}][:3]:
             start = max(0.0, hit.start_s - 12)
             end = hit.end_s + 12
             if not any(abs(start - a) < 8 and abs(end - b) < 8 for a, b in windows):
@@ -155,8 +155,15 @@ def ask(
 
     memory = get_global_memory(conn, movie_id) or {}
     evidence_text = "\n\n".join(
-        f"[EVIDENCE {h.evidence_id}] [{_timestamp(h.start_s)}-{_timestamp(h.end_s)}] "
-        f"{h.source_type}\n{h.content}"
+        (
+            f"[EVIDENCE {h.evidence_id}] "
+            + (
+                f"[{_timestamp(h.start_s)}-{_timestamp(h.end_s)}] "
+                if h.source_type not in {"global", "character"}
+                else "[no direct video timestamp] "
+            )
+            + f"{h.source_type}\n{h.content}"
+        )
         for h in hits
     )
     rewatch_text = "\n\n".join(
@@ -185,7 +192,12 @@ def ask(
         and hits
     ):
         transcript, _ = transcribe_movie(video)
-        target = hits[0]
+        target = next(
+            (hit for hit in hits if hit.source_type not in {"global", "character"}),
+            None,
+        )
+        if target is None:
+            return result
         rewatch_results.append(
             rewatch_window(
                 client,
