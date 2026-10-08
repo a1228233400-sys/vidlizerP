@@ -19,9 +19,12 @@ class Profile:
 
 
 PROFILES = {
-    "safe": Profile("safe", 8, 512, 1536, 8192),
-    "balanced": Profile("balanced", 12, 640, 2048, 12288),
-    "deep": Profile("deep", 16, 768, 3072, 16384),
+    # Safe is deliberately conservative for 7B-class local VLMs. The lower
+    # image count/resolution keeps the multimodal prompt inside an 8K context
+    # on common Ollama builds while preserving temporal coverage.
+    "safe": Profile("safe", 6, 448, 1024, 8192),
+    "balanced": Profile("balanced", 10, 576, 1536, 12288),
+    "deep": Profile("deep", 14, 704, 2048, 16384),
 }
 
 
