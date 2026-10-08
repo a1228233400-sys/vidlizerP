@@ -585,3 +585,19 @@ def like_search_evidence(
         (movie_id, *params, limit),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def load_transcript(conn: sqlite3.Connection, movie_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT start_s, end_s, text, source FROM transcripts WHERE movie_id=? ORDER BY start_s",
+        (movie_id,),
+    ).fetchall()
+    return [
+        {
+            "start": float(row["start_s"]),
+            "end": float(row["end_s"]),
+            "text": row["text"],
+            "source": row["source"],
+        }
+        for row in rows
+    ]
