@@ -522,6 +522,23 @@ def rebuild_search_index(conn: sqlite3.Connection, movie_id: int) -> int:
         )
 
     for row in conn.execute(
+        "SELECT sequence_id, start_s, end_s, title, summary FROM story_sequences WHERE movie_id=?",
+        (movie_id,),
+    ):
+        evidence_rows.append(
+            (
+                f"ev_sequence_{row['sequence_id']}",
+                movie_id,
+                "sequence",
+                row["sequence_id"],
+                row["start_s"],
+                row["end_s"],
+                f"{row['title']}. {row['summary']}",
+            )
+        )
+
+
+    for row in conn.execute(
         "SELECT character_key, name, aliases_json, description, arc_notes FROM characters WHERE movie_id=?",
         (movie_id,),
     ):
