@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .db import get_global_memory, like_search_evidence, rebuild_search_index, search_evidence
+from .db import get_global_memory, like_search_evidence, rebuild_search_index, search_evidence, time_evidence
 from .provider import ProviderClient
 from .rewatch import rewatch_window
 from .transcript import transcribe_movie
@@ -40,6 +40,26 @@ def _fts_query(question: str) -> str:
     return " AND ".join(f'"{token.replace(chr(34), "")}"' for token in tokens[:12])
 
 
+
+def _time_targets(question: str) -> list[tuple[float, float]]:
+    targets: list[tuple[float, float]] = []
+
+    for h, minute, second in re.findall(
+        r"(?:at|@|around|约|大约|在)?\s*(\d{1,2}):(\d{2})(?::(\d{2}))?",
+        question.lower(),
+    ):
+        if second:
+            total = int(h) * 3600 + int(minute) * 60 + int(second)
+        else:
+            total = int(h) * 60 + int(minute)
+        targets.append((max(0.0, total - 30), total + 30))
+
+    for value in re.findall(r"(\d+(?:\.\d+)?)\s*(?:minutes?|mins?|分钟|分)", question.lower()):
+        seconds = float(value) * 60
+        targets.append((max(0.0, seconds - 45), seconds + 45))
+
+    return targets
+
 def build_index(conn, movie_id: int) -> int:
     return rebuild_search_index(conn, movie_id)
 
@@ -57,7 +77,19 @@ def ask(
 ) -> dict:
     hits_raw = search_evidence(conn, movie_id, _fts_query(question), limit=max_hits)
     if not hits_raw:
-        hits_raw = like_search_evidence(conn, movie_id, _terms(question), limit=max_hits)
+        tokens = _terms(question)
+        if tokens:
+            or_query = " OR ".join(f'"{token.replace(chr(34), "")}"' for token in tokens[:16])
+            hits_raw = search_evidence(conn, movie_id, or_query, limit=max_hits)
+            if not hits_raw:
+                hits_raw = like_search_evidence(conn, movie_id, tokens, limit=max_hits)
+
+    for start_s, end_s in _time_targets(question):
+        timed = time_evidence(conn, movie_id, start_s, end_s, limit=max_hits)
+        seen = {row["evidence_id"] for row in hits_raw}
+        hits_raw.extend(row for row in timed if row["evidence_id"] not in seen)
+        if len(hits_raw) >= max_hits:
+            hits_raw = hits_raw[:max_hits]
     hits = [
         EvidenceHit(
             evidence_id=row["evidence_id"],
@@ -139,4 +171,16 @@ def ask(
 
     if rewatch_results:
         result["rewatch"] = rewatch_results
+
+    result["evidence"] = [
+        {
+            "evidence_id": h.evidence_id,
+            "source_type": h.source_type,
+            "start_s": h.start_s,
+            "end_s": h.end_s,
+            "timestamp": _timestamp(h.start_s),
+            "content": h.content,
+        }
+        for h in hits
+    ]
     return result
