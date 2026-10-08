@@ -111,6 +111,38 @@ def _faster_whisper_transcribe(video: Path) -> list[dict]:
     ]
 
 
+
+def embedded_subtitle_transcript(video: Path) -> list[dict]:
+    """Extract the first embedded subtitle stream via ffmpeg when present."""
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            [
+                "ffmpeg",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                str(video),
+                "-map",
+                "0:s:0",
+                "-c:s",
+                "srt",
+                "-f",
+                "srt",
+                "pipe:1",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0 or not proc.stdout.strip():
+        return []
+    return parse_srt(proc.stdout)
+
 def transcribe_movie(video: Path) -> tuple[list[dict], str]:
     """Choose the safest available local transcript path for the platform."""
     if sys.platform == "darwin":
@@ -131,6 +163,10 @@ def transcribe_movie(video: Path) -> tuple[list[dict], str]:
     sidecar = sidecar_transcript(video)
     if sidecar:
         return sidecar, "sidecar"
+
+    embedded = embedded_subtitle_transcript(video)
+    if embedded:
+        return embedded, "embedded-subtitle"
 
     return [], "unavailable"
 
