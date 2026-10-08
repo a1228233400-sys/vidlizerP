@@ -163,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
                     int(row["id"]),
                     question,
                     client,
-                    video=movie_path if args.deep else None,
+                    video=movie_path,
                     deep=args.deep,
                     workspace=Path(temp),
                 )
