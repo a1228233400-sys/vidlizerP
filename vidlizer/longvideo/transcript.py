@@ -1,8 +1,10 @@
-"""Transcript extraction for long-form movie analysis."""
+"""Cross-platform transcript extraction for MovieMind."""
 
 from __future__ import annotations
 
+import os
 import re
+import sys
 from pathlib import Path
 
 
@@ -71,23 +73,75 @@ def sidecar_transcript(video: Path) -> list[dict]:
     return []
 
 
+def _mlx_transcribe(video: Path) -> list[dict]:
+    from vidlizer.transcribe import is_available, transcribe
+    if not is_available():
+        return []
+    return transcribe(video) or []
+
+
+def _faster_whisper_transcribe(video: Path) -> list[dict]:
+    """Use conservative CPU INT8 settings unless the user explicitly opts in."""
+    from faster_whisper import WhisperModel
+
+    model_name = os.getenv("MOVIEMIND_WHISPER_MODEL", "base")
+    device = os.getenv("MOVIEMIND_WHISPER_DEVICE", "cpu").lower()
+    compute_type = os.getenv("MOVIEMIND_WHISPER_COMPUTE_TYPE", "int8")
+    model = WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=min(4, max(1, os.cpu_count() or 1)),
+        num_workers=1,
+    )
+    segments, _ = model.transcribe(
+        str(video),
+        beam_size=5,
+        vad_filter=True,
+        condition_on_previous_text=False,
+    )
+    return [
+        {
+            "start": round(float(segment.start), 3),
+            "end": round(float(segment.end), 3),
+            "text": segment.text.strip(),
+        }
+        for segment in segments
+        if segment.text and segment.text.strip()
+    ]
+
+
 def transcribe_movie(video: Path) -> tuple[list[dict], str]:
-    try:
-        from vidlizer.transcribe import is_available, transcribe
-        if is_available():
-            result = transcribe(video) or []
+    """Choose the safest available local transcript path for the platform."""
+    if sys.platform == "darwin":
+        try:
+            result = _mlx_transcribe(video)
             if result:
                 return result, "mlx-whisper"
+        except Exception:
+            pass
+
+    try:
+        result = _faster_whisper_transcribe(video)
+        if result:
+            return result, "faster-whisper"
     except Exception:
         pass
+
     sidecar = sidecar_transcript(video)
     if sidecar:
         return sidecar, "sidecar"
+
     return [], "unavailable"
 
 
-def overlapping_segments(segments: list[dict], start_s: float, end_s: float) -> list[dict]:
+def overlapping_segments(
+    segments: list[dict],
+    start_s: float,
+    end_s: float,
+) -> list[dict]:
     return [
         s for s in segments
-        if float(s.get("end", 0)) > start_s and float(s.get("start", 0)) < end_s
+        if float(s.get("end", 0)) > start_s
+        and float(s.get("start", 0)) < end_s
     ]
