@@ -172,7 +172,7 @@ def build_hierarchical_memory(
         )
         sequences.append(client.complete_json(prompt, max_output_tokens=2048))
 
-    high_events = [e for e in events if e.get("importance") == "high"][:80]
+    high_events = [e for e in events if e.get("importance") == "high"][:40]
     global_prompt = (
         "You are the senior story analyst. Build global memory for a feature-length movie. "
         "Use only the supplied material. Separate established facts from interpretation. "
