@@ -27,7 +27,7 @@ from .db import (
 )
 from .media import probe_movie
 from .models import Shot
-from .resources import PROFILES, check_safe_to_start, format_preflight, recommend_profile
+from .resources import PROFILES, check_safe_to_start, format_preflight, recommend_profile, snapshot
 from .sampling import adaptive_sample_points
 from .scenes import build_scenes
 from .memory import build_character_event_memory, build_hierarchical_memory
@@ -134,6 +134,12 @@ def analyze_all_shots(
         with tempfile.TemporaryDirectory(prefix="moviemind_work_") as temp:
             workspace = Path(temp)
             for index, row in enumerate(shots, start=1):
+                current = snapshot(video)
+                if current.memory_available_gb is not None and current.memory_available_gb < 1.5:
+                    raise RuntimeError(
+                        f"Available RAM fell to {current.memory_available_gb:.1f} GB; "
+                        "pausing to protect the computer. Re-run to resume."
+                    )
                 _console.print(
                     f"[cyan]→[/cyan] shot {index}/{len(shots)} "
                     f"[dim]{row['shot_id']} {row['start_s']:.1f}-{row['end_s']:.1f}s[/dim]"
@@ -262,6 +268,10 @@ def process_movie(
         raise ValueError(f"Unknown profile: {profile}")
     selected = PROFILES[profile]
     snap, warnings = check_safe_to_start(video, db_path)
+    if snap.memory_available_gb is not None and snap.memory_available_gb < 4.0 and profile != "safe":
+        profile = "safe"
+        selected = PROFILES["safe"]
+        warnings.append("Low available RAM forced the safe profile.")
     _console.print(format_preflight(snap, warnings, selected))
 
     client = ProviderClient.from_env(
