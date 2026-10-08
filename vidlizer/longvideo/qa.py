@@ -60,6 +60,25 @@ def _time_targets(question: str) -> list[tuple[float, float]]:
 
     return targets
 
+
+QUERY_EXPANSION_PROMPT = """Expand a movie question into a small set of retrieval queries.
+The movie evidence may be in English even when the user asks in Chinese. Produce up to five
+short keyword phrases covering people, objects, locations, events, and likely English equivalents.
+Do not answer the question.
+Return ONLY JSON: {"queries":["..."]}"""
+
+
+def _expand_terms(client: ProviderClient, question: str) -> list[str]:
+    try:
+        result = client.complete_json(
+            QUERY_EXPANSION_PROMPT + "\nQUESTION:\n" + question,
+            max_output_tokens=512,
+        )
+        queries = result.get("queries", [])
+        return [str(q).strip() for q in queries if str(q).strip()][:5]
+    except Exception:
+        return []
+
 def build_index(conn, movie_id: int) -> int:
     return rebuild_search_index(conn, movie_id)
 
@@ -83,6 +102,23 @@ def ask(
             hits_raw = search_evidence(conn, movie_id, or_query, limit=max_hits)
             if not hits_raw:
                 hits_raw = like_search_evidence(conn, movie_id, tokens, limit=max_hits)
+
+    if len(hits_raw) < max(3, max_hits // 3):
+        for expanded in _expand_terms(client, question):
+            expanded_terms = re.findall(r"[\w\u4e00-\u9fff]{2,}", expanded.lower())
+            if not expanded_terms:
+                continue
+            expanded_query = " OR ".join(
+                f'"{token.replace(chr(34), "")}"' for token in expanded_terms[:10]
+            )
+            extra = search_evidence(conn, movie_id, expanded_query, limit=max_hits)
+            if not extra:
+                extra = like_search_evidence(conn, movie_id, expanded_terms, limit=max_hits)
+            seen = {row["evidence_id"] for row in hits_raw}
+            hits_raw.extend(row for row in extra if row["evidence_id"] not in seen)
+            if len(hits_raw) >= max_hits:
+                hits_raw = hits_raw[:max_hits]
+                break
 
     for start_s, end_s in _time_targets(question):
         timed = time_evidence(conn, movie_id, start_s, end_s, limit=max_hits)
