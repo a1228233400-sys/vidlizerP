@@ -5,10 +5,10 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from .extract import extract_points
+from .extract import extract_uniform_window
 from .models import Shot
 from .provider import ProviderClient
-from .sampling import adaptive_sample_points
+from .sampling import sample_count
 from .transcript import overlapping_segments
 
 
@@ -50,27 +50,39 @@ def analyze_shot(
     max_samples: int = 12,
     max_output_tokens: int = 2048,
 ) -> dict:
-    samples = adaptive_sample_points(shot, maximum=max_samples)
-    points = [(s.sample_id, s.timestamp_s) for s in samples]
+    count = min(max_samples, sample_count(shot.duration_s, maximum=max_samples))
     shot_dir = workspace / shot.shot_id
     if shot_dir.exists():
         shutil.rmtree(shot_dir)
     shot_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        images, timestamps = extract_points(video, points, shot_dir, scale)
+        images, timestamps = extract_uniform_window(
+            video,
+            shot.start_s,
+            shot.end_s,
+            count,
+            shot_dir,
+            scale=scale,
+            prefix="shot",
+        )
         segments = overlapping_segments(transcript, shot.start_s, shot.end_s)
-        transcript_text = "\\n".join(
+        transcript_text = "\n".join(
             f"[{float(s['start']):.2f}-{float(s['end']):.2f}] {s['text']}"
             for s in segments
         )
         prompt = (
-            f"{SHOT_PROMPT}\\n"
-            f"Shot: {shot.shot_id}\\n"
-            f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s\\n"
-            f"Transcript:\\n{transcript_text or '(none)'}\\n"
+            f"{SHOT_PROMPT}\n"
+            f"Shot: {shot.shot_id}\n"
+            f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s\n"
+            f"Transcript:\n{transcript_text or '(none)'}\n"
         )
-        result = client.analyze(prompt, images, timestamps, max_output_tokens=max_output_tokens)
+        result = client.analyze(
+            prompt,
+            images,
+            timestamps,
+            max_output_tokens=max_output_tokens,
+        )
         result.update(
             {
                 "shot_id": shot.shot_id,
@@ -86,7 +98,7 @@ def analyze_shot(
 
 
 def compact_observation(observation: dict) -> str:
-    return "\\n".join(
+    return "\n".join(
         [
             f"Location: {observation.get('location', 'unknown')}",
             "Characters: " + ", ".join(
