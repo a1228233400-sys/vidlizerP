@@ -643,6 +643,7 @@ def time_evidence(
         SELECT evidence_id, source_type, start_s, end_s, content
         FROM evidence
         WHERE movie_id=?
+          AND source_type IN ('shot', 'transcript', 'scene', 'event')
           AND start_s <= ?
           AND end_s >= ?
         ORDER BY ABS(((start_s + end_s) / 2.0) - ?) ASC
