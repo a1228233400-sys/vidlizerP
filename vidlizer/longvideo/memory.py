@@ -176,10 +176,10 @@ def build_hierarchical_memory(
             "sequence_id": f"seq_{start // scene_batch + 1:04d}",
             "start_s": float(chunk[0]["start_s"]),
             "end_s": float(chunk[-1]["end_s"]),
-            "title": summary.get("sequence_title", f"Sequence {start // scene_batch + 1}"),
-            "summary": summary.get("summary", ""),
-            "key_events": summary.get("key_events", []),
-            "character_changes": summary.get("character_changes", []),
+            "title": str(summary.get("sequence_title", f"Sequence {start // scene_batch + 1}"))[:200],
+            "summary": str(summary.get("summary", ""))[:1600],
+            "key_events": [str(x)[:300] for x in summary.get("key_events", [])][:8],
+            "character_changes": [str(x)[:300] for x in summary.get("character_changes", [])][:8],
         }
         sequences.append(sequence)
 
