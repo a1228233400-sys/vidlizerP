@@ -14,6 +14,7 @@ from .db import (
     clear_memory_layers,
     insert_samples,
     insert_transcript,
+    load_transcript,
     load_movie_info,
     mark_shot_status,
     movie_id_for_path,
@@ -115,16 +116,20 @@ def analyze_all_shots(
     conn = connect(db_path)
     movie_id = _movie_id(conn, video)
     try:
-        transcript, source = transcribe_movie(video)
-        insert_transcript(conn, movie_id, transcript, source)
-        record_run(
-            conn,
-            movie_id,
-            "transcript",
-            "complete" if transcript else "unavailable",
-            {"segments": len(transcript), "source": source},
-        )
-        conn.commit()
+        if stage_complete(conn, movie_id, "transcript"):
+            transcript = load_transcript(conn, movie_id)
+            source = "stored"
+        else:
+            transcript, source = transcribe_movie(video)
+            insert_transcript(conn, movie_id, transcript, source)
+            record_run(
+                conn,
+                movie_id,
+                "transcript",
+                "complete" if transcript else "unavailable",
+                {"segments": len(transcript), "source": source},
+            )
+            conn.commit()
 
         shots = pending_shots(conn, movie_id)
         if not shots:
