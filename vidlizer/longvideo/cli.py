@@ -19,6 +19,7 @@ from .pipeline import (
 )
 from .provider import ProviderClient
 from .qa import ask
+from .report import write_report
 from .resources import PROFILES, check_safe_to_start, format_preflight, recommend_profile
 
 
@@ -83,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
     status_cmd = sub.add_parser("status", help="Show analysis progress.")
     status_cmd.add_argument("db", type=Path)
 
+    report = sub.add_parser("report", help="Generate a human-readable analysis report.")
+    report.add_argument("db", type=Path)
+    report.add_argument("--output", type=Path, default=None)
+
     doctor = sub.add_parser("doctor", help="Check local resources without processing.")
     doctor.add_argument("video", type=Path)
     doctor.add_argument("--db", type=Path, default=None)
@@ -96,6 +101,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "status":
         print(json.dumps(status(args.db), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "report":
+        output = write_report(args.db, args.output)
+        print(output)
         return 0
 
     if args.command == "doctor":
