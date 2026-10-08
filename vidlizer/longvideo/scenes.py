@@ -51,6 +51,8 @@ def build_scenes(
     window_size: int = 36,
     overlap: int = 4,
     max_output_tokens: int = 2048,
+,
+    max_scene_shots: int = 80,
 ) -> list[Scene]:
     rows = load_shot_observations(conn, movie_id)
     if not rows:
@@ -82,8 +84,13 @@ def build_scenes(
     if current:
         groups.append(current)
 
+    bounded_groups: list[list[dict]] = []
+    for group in groups:
+        for start in range(0, len(group), max_scene_shots):
+            bounded_groups.append(group[start:start + max_scene_shots])
+
     scenes: list[Scene] = []
-    for idx, group in enumerate(groups, start=1):
+    for idx, group in enumerate(bounded_groups, start=1):
         summary = client.complete_json(
             SUMMARY_PROMPT + "\\n\\n" + _items(group),
             max_output_tokens=max_output_tokens,
