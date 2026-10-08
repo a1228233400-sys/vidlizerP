@@ -27,10 +27,11 @@ class ProviderError(RuntimeError):
 class ProviderClient:
     """Bounded provider client: one request at a time per shot."""
 
-    def __init__(self, config: ProviderConfig, timeout: int = 600, max_cost: float = 0.0) -> None:
+    def __init__(self, config: ProviderConfig, timeout: int = 600, max_cost: float = 0.0, context_tokens: int = 8192) -> None:
         self.config = config
         self.timeout = timeout
         self.max_cost = max_cost
+        self.context_tokens = max(4096, context_tokens)
         self.requests = 0
         self.cost_usd = 0.0
 
@@ -41,6 +42,7 @@ class ProviderClient:
         model: str | None = None,
         timeout: int = 600,
         max_cost: float = 0.0,
+        context_tokens: int = 8192,
     ) -> "ProviderClient":
         p = (provider or os.getenv("PROVIDER") or "ollama").lower()
         m = model or os.getenv("MOVIEMIND_MODEL") or os.getenv("MODEL")
@@ -50,6 +52,7 @@ class ProviderClient:
                 ProviderConfig(p, m or "qwen2.5vl:7b", f"{host}/api/chat", None),
                 timeout,
                 max_cost,
+                context_tokens,
             )
         if p == "openrouter":
             key = os.getenv("OPENROUTER_API_KEY")
@@ -64,6 +67,7 @@ class ProviderClient:
                 ),
                 timeout,
                 max_cost,
+                context_tokens,
             )
         if p in {"openai", "openai-compat"}:
             base = os.getenv("OPENAI_BASE_URL", "http://localhost:1234/v1").rstrip("/")
@@ -147,7 +151,7 @@ class ProviderClient:
                 "stream": False,
                 "options": {
                     "temperature": 0.1,
-                    "num_ctx": 16384,
+                    "num_ctx": self.context_tokens,
                     "num_predict": max_tokens,
                 },
             }
