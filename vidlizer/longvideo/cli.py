@@ -18,7 +18,7 @@ from .pipeline import (
     status,
 )
 from .provider import ProviderClient
-from .qa import ask, build_index
+from .qa import ask
 from .resources import PROFILES, check_safe_to_start, format_preflight, recommend_profile
 
 
