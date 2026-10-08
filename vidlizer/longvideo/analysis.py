@@ -49,6 +49,7 @@ def analyze_shot(
     scale: int = 640,
     max_samples: int = 12,
     max_output_tokens: int = 2048,
+    deep_pass: bool = False,
 ) -> dict:
     count = min(max_samples, sample_count(shot.duration_s, maximum=max_samples))
     shot_dir = workspace / shot.shot_id
@@ -71,8 +72,15 @@ def analyze_shot(
             f"[{float(s['start']):.2f}-{float(s['end']):.2f}] {s['text']}"
             for s in segments
         )
+        depth_note = (
+            "This is a SECOND, HIGH-DENSITY PASS. Re-check subtle visual changes, identity continuity, "
+            "objects, and action ordering. Resolve uncertainty where the added observations support it.\n"
+            if deep_pass
+            else ""
+        )
         prompt = (
             f"{SHOT_PROMPT}\n"
+            f"{depth_note}"
             f"Shot: {shot.shot_id}\n"
             f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s\n"
             f"Transcript:\n{transcript_text or '(none)'}\n"
@@ -90,6 +98,7 @@ def analyze_shot(
                 "end_s": shot.end_s,
                 "duration_s": shot.duration_s,
                 "observed_at": [round(t, 3) for t in timestamps],
+                "analysis_pass": 2 if deep_pass else 1,
             }
         )
         return result
