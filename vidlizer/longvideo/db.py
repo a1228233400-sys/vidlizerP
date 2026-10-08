@@ -601,3 +601,27 @@ def load_transcript(conn: sqlite3.Connection, movie_id: int) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def time_evidence(
+    conn: sqlite3.Connection,
+    movie_id: int,
+    start_s: float,
+    end_s: float,
+    limit: int = 12,
+) -> list[dict]:
+    """Return evidence closest to a requested time range."""
+    center = (start_s + end_s) / 2.0
+    rows = conn.execute(
+        """
+        SELECT evidence_id, source_type, start_s, end_s, content
+        FROM evidence
+        WHERE movie_id=?
+          AND start_s <= ?
+          AND end_s >= ?
+        ORDER BY ABS(((start_s + end_s) / 2.0) - ?) ASC
+        LIMIT ?
+        """,
+        (movie_id, end_s, start_s, center, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
