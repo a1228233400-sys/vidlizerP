@@ -78,6 +78,7 @@ class ProviderClient:
                 ProviderConfig("openai", m, f"{base}/chat/completions", key),
                 timeout,
                 max_cost,
+                context_tokens,
             )
         raise ProviderError(f"Unsupported provider: {p}")
 
