@@ -155,6 +155,20 @@ CREATE TABLE IF NOT EXISTS memories (
     PRIMARY KEY(movie_id, memory_type)
 );
 
+CREATE TABLE IF NOT EXISTS story_sequences (
+    id INTEGER PRIMARY KEY,
+    movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+    sequence_id TEXT NOT NULL,
+    start_s REAL NOT NULL,
+    end_s REAL NOT NULL,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    data_json TEXT NOT NULL,
+    UNIQUE(movie_id, sequence_id)
+);
+CREATE INDEX IF NOT EXISTS idx_story_sequences_movie_time
+ON story_sequences(movie_id, start_s);
+
 CREATE TABLE IF NOT EXISTS pipeline_runs (
     id INTEGER PRIMARY KEY,
     movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
@@ -652,3 +666,34 @@ def time_evidence(
         (movie_id, end_s, start_s, center, limit),
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+def replace_story_sequences(conn: sqlite3.Connection, movie_id: int, sequences: list[dict]) -> None:
+    conn.execute("DELETE FROM story_sequences WHERE movie_id=?", (movie_id,))
+    conn.executemany(
+        """
+        INSERT INTO story_sequences
+        (movie_id, sequence_id, start_s, end_s, title, summary, data_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                movie_id,
+                item["sequence_id"],
+                float(item["start_s"]),
+                float(item["end_s"]),
+                item.get("title", item.get("sequence_title", "Sequence")),
+                item.get("summary", ""),
+                json.dumps(item, ensure_ascii=False),
+            )
+            for item in sequences
+        ],
+    )
+
+
+def load_story_sequences(conn: sqlite3.Connection, movie_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM story_sequences WHERE movie_id=? ORDER BY start_s",
+        (movie_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
