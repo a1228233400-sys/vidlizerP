@@ -19,6 +19,8 @@ Do not describe the images independently. Reconstruct the change that happens ac
 
 Use ONLY evidence in the images and supplied transcript. Do not invent identities, motives, or off-screen events.
 
+Keep the response compact. Lists must contain at most 4 items. Each description/string should be short (preferably under 120 characters). Do not quote long dialogue. Summary should stay under 240 characters.
+
 Return ONLY valid JSON:
 {
   "location": "...",
@@ -85,12 +87,50 @@ def analyze_shot(
             f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s\n"
             f"Transcript:\n{transcript_text or '(none)'}\n"
         )
-        result = client.analyze(
-            prompt,
-            images,
-            timestamps,
-            max_output_tokens=max_output_tokens,
-        )
+        try:
+            result = client.analyze(
+                prompt,
+                images,
+                timestamps,
+                max_output_tokens=max_output_tokens,
+            )
+        except Exception as first_exc:
+            message = str(first_exc).lower()
+            if not any(
+                marker in message
+                for marker in (
+                    "invalid json",
+                    "unterminated string",
+                    "expecting property name",
+                    "expecting value",
+                    "expecting ',' delimiter",
+                )
+            ):
+                raise
+            compact_prompt = (
+                f"{SHOT_PROMPT}
+"
+                "COMPACT RETRY: Return a small JSON object only. "
+                "Use at most 3 items in any array. Keep each string under 120 characters. "
+                "Keep summary under 240 characters and dialogue_context under 180 characters. "
+                "No markdown, no commentary, no long quotations.
+"
+                f"{depth_note}"
+                f"Shot: {shot.shot_id}
+"
+                f"Absolute time: {shot.start_s:.3f}-{shot.end_s:.3f}s
+"
+                f"Transcript:
+{transcript_text or '(none)'}
+"
+            )
+            # Reuse the extracted frames; do not launch another FFmpeg process.
+            result = client.analyze(
+                compact_prompt,
+                images,
+                timestamps,
+                max_output_tokens=min(max_output_tokens, 1024),
+            )
         result.update(
             {
                 "shot_id": shot.shot_id,
