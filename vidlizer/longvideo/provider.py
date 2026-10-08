@@ -177,6 +177,8 @@ class ProviderClient:
                     or first_exc.pos >= max(0, len(text) - 32)
                 ):
                     repaired = ProviderClient._repair_truncated_json(normalized)
+                    repaired = re.sub(r",(s*[}]])", r"\1", repaired)
+                    repaired = re.sub(r",s*([}]])", r"\1", repaired)
                     try:
                         value, _ = decoder.raw_decode(repaired)
                         if isinstance(value, dict):
