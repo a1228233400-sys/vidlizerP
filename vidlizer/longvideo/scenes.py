@@ -51,7 +51,6 @@ def build_scenes(
     window_size: int = 36,
     overlap: int = 4,
     max_output_tokens: int = 2048,
-,
     max_scene_shots: int = 80,
 ) -> list[Scene]:
     rows = load_shot_observations(conn, movie_id)
