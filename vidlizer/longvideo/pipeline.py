@@ -273,6 +273,9 @@ def process_movie(
     scene_threshold: float = 3.0,
     min_scene_len: int = 12,
 ) -> dict:
+    if profile == "auto":
+        auto_snap = snapshot(video)
+        profile = recommend_profile(auto_snap).name
     if profile not in PROFILES:
         raise ValueError(f"Unknown profile: {profile}")
     selected = PROFILES[profile]
@@ -348,6 +351,16 @@ def status(db_path: Path) -> dict:
             "transcript_segments": conn.execute("SELECT COUNT(*) FROM transcripts WHERE movie_id=?", (mid,)).fetchone()[0],
             "evidence": conn.execute("SELECT COUNT(*) FROM evidence WHERE movie_id=?", (mid,)).fetchone()[0],
         }
+        duration = float(row["duration_s"] if "duration_s" in row.keys() else 0.0)
+        completed_duration = float(
+            conn.execute(
+                "SELECT COALESCE(SUM(duration_s),0) FROM shots WHERE movie_id=? AND analysis_status='complete'",
+                (mid,),
+            ).fetchone()[0]
+        )
+        counts["visual_coverage_pct"] = round(
+            (completed_duration / duration * 100) if duration > 0 else 0.0, 2
+        )
         return {
             "ready": counts["shots"] > 0 and counts["shots"] == counts["shots_complete"] and counts["scenes"] > 0,
             "movie": load_movie_info(conn, mid),
